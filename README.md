@@ -95,6 +95,13 @@ python -m pip install --upgrade pip
 pip install -e ".[dev]"
 ```
 
+### 그래픽 UI (PyQt6, 선택)
+
+```bash
+pip install -e ".[gui]"
+python -m magicsquare
+```
+
 ### 테스트 실행
 
 ```bash
