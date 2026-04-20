@@ -1,0 +1,154 @@
+################################################################################
+# Cursor 에이전트 기준 규칙: .cursor/rules/magicsquare-*.mdc
+# 아래 YAML은 동일 정책의 단일 파일 미러(참고·백업)로 유지한다.
+################################################################################
+project:
+  name: MagicSquare
+  summary: >
+    마방진 도메인을 ECB(Entity–Control–Boundary)로 분리하고, 듀얼 트랙 TDD로
+    요구사항·설계·구현을 정렬하는 Python 프로젝트.
+  language: Python
+  goals:
+    - ECB 3레이어에 맞는 모듈 경계 유지
+    - pytest 기반 테스트와 최소 커버리지 기준 충족
+    - 타입 힌트·문서화·포매터 기준을 일관되게 적용
+################################################################################
+code_style:
+  python_version: "3.10+"
+  style_guide: PEP8 엄격 준수
+  type_hints: 모든 함수 파라미터와 반환값에 필수
+  docstring: Google 스타일, 모든 public 메서드에 필수
+  max_line_length: 88
+  formatter: Black (88열), isort는 Black 호환 프로필 사용
+  imports: 표준 라이브러리 / 서드파티 / 로컬 순서 유지, 순환 import 금지
+################################################################################
+architecture:
+  pattern: ECB (Entity–Control–Boundary)
+  layers:
+    boundary:
+      role: 외부 입출력 담당
+      contains:
+        - UI (콘솔·웹·데스크톱 등 표현 계층)
+        - API (HTTP/gRPC 등 외부 계약)
+        - CLI (명령행 인터페이스)
+      must_not: 도메인 규칙·유스케이스 분기를 여기서 구현하지 말 것 (위임만)
+    control:
+      role: 비즈니스 로직·유스케이스·오케스트레이션 담당
+      contains:
+        - 애플리케이션 서비스 / 인터랙터 / 유스케이스 클래스
+        - 트랜잭션 경계·검증·워크플로 조합
+      depends_on:
+        - entity
+    entity:
+      role: 도메인 데이터·불변식·순수 도메인 규칙 담당
+      contains:
+        - 엔티티·값 객체·도메인 서비스(순수 함수 포함)
+      depends_on: []
+  dependency_direction:
+    rule: 의존성은 항상 안쪽(도메인)을 향한다.
+    allowed:
+      - boundary → control → entity
+      - control → entity
+    forbidden:
+      - entity가 control·boundary에 의존하는 것
+      - control이 boundary 구체(UI/API 어댑터)에 직접 의존하는 것 (인터페이스 주입으로 역전)
+################################################################################
+tdd_rules:
+  red_phase:
+    description: 실패하는 테스트를 먼저 작성하고, 의도된 실패를 확인한 뒤에만 구현으로 넘어간다.
+    rules:
+      - 요구사항을 테스트로 번역할 것 (행동·경계값 중심)
+      - 테스트가 컴파일/수집은 되지만 의도대로 실패(Red)할 것을 확인
+      - 한 번에 하나의 작은 동작만 다룰 것
+    must_not:
+      - 프로덕션 코드를 먼저 추가해 테스트를 통과시키기
+      - 실패 원인을 확인하지 않은 채 다음 단계로 진행하기
+  green_phase:
+    description: 테스트를 통과시키는 데 필요한 최소한의 코드만 작성한다.
+    rules:
+      - 가장 단순한 구현·상수 반환 등 허용되나, 다음 Red에서 드러날 거짓 통과는 피할 것
+      - 모든 테스트가 Green이 될 때까지 작은 단위로 반복
+    must_not:
+      - 이 단계에서 구조 개선·이름 변경·중복 제거 등 리팩터링 하기
+      - 범위 밖 기능·추가 요구사항을 함께 구현하기
+  refactor_phase:
+    description: 동작(외부 관찰 가능한 결과)은 유지한 채 설계와 가독성을 개선한다.
+    rules:
+      - 테스트 스위트를 계속 Green으로 유지할 것
+      - 커버리지가 testing.coverage_minimum 미만으로 떨어지지 않게 할 것
+      - ECB 경계에 맞게 책임 이동·이름 정리·중복 제거
+    must_not:
+      - 새 기능이나 새 공개 동작 추가(요구사항 변경)
+      - 테스트를 약화시키거나 불필요하게 삭제해 Green만 맞추기
+################################################################################
+testing:
+  framework: pytest
+  pattern: AAA (Arrange-Act-Assert)
+  coverage_minimum: "80%"
+  fixture_scope:
+    default: function
+    rules:
+      - 기본은 function 스코프로 테스트 간 격리를 보장한다.
+      - 비용이 큰 읽기 전용 리소스는 module 스코프를 검토하되, 상태 누수가 없어야 한다.
+      - 세션 전역 자원은 session 스코프로만 두고, 변경 가능한 전역 상태는 금지한다.
+      - autouse는 최소화하고, 필요 시 이유를 테스트 또는 문서에 남긴다.
+  naming_convention: test_ 접두사 필수
+  markers: 느린·통합 테스트는 마커로 구분해 선택 실행 가능하게 한다.
+################################################################################
+forbidden:
+  - pattern: 디버깅 목적의 print()를 프로덕션 경로에 남기기
+    reason: 로그 레벨·관측 가능성·출력 혼잡을 망가뜨리고 테스트에서 포착하기 어렵다.
+    alternative: logging 모듈 또는 boundary에서 명시적 출력 어댑터 사용
+  - pattern: 의미 없는 매직 넘버·문자열 하드코딩
+    reason: 변경·검증·의도 파악이 어렵고 중복이 생긴다.
+    alternative: entity에 이름 붙은 상수·설정 객체·파라미터화된 팩토리
+  - pattern: "except 단독 사용 (except: 또는 except Exception: 남용)"
+    reason: 예상치 못한 오류를 삼키고 원인 추적을 방해한다.
+    alternative: 구체 예외 타입을 잡고, 로깅 후 재던지거나 경계에서만 변환
+  - pattern: 타입 힌트 없는 public 함수·메서드
+    reason: code_style.type_hints 및 정적 분석 일관성을 깬다.
+    alternative: 모든 파라미터·반환에 명시적 어노테이션 (필요 시 Optional, Protocol)
+  - pattern: entity·control이 boundary의 구체 프레임워크에 직접 의존
+    reason: architecture.dependency_direction 위반이다.
+    alternative: 인터페이스·DTO·의존성 주입으로 boundary에서 어댑트
+################################################################################
+file_structure:
+  tree: |
+    # MagicSquare — ECB 기준 권장 디렉터리 (개념 트리)
+    #
+    # src/magicsquare/
+    # ├── boundary/          # UI, API, CLI — 외부와의 접점
+    # │   ├── api/
+    # │   ├── cli/
+    # │   └── ui/
+    # ├── control/           # 유스케이스·애플리케이션 서비스
+    # │   └── use_cases/
+    # ├── entity/            # 도메인 모델·규칙·값 객체
+    # │   ├── models/
+    # │   └── services/
+    # └── __init__.py
+    #
+    # tests/
+    # ├── boundary/
+    # ├── control/
+    # ├── entity/
+    # └── conftest.py
+  notes:
+    - 실제 루트 패키지 이름은 저장소에 맞게 조정 가능하나, ECB 3분할과 tests 미러는 유지한다.
+################################################################################
+ai_behavior:
+  before_coding:
+    - 관련 테스트 파일(tests/ 및 동일 ECB 영역)을 먼저 열어 기존 케이스·픽스처·마커를 확인한다.
+    - architecture.dependency_direction과 file_structure.tree를 위반하지 않을 계획을 세운다.
+  while_coding:
+    - ECB 레이어 경계를 넘는 import·직접 호출을 만들지 않는다.
+    - 타입 힌트 없는 함수·public 메서드를 생성하지 않는다.
+    - code_style.max_line_length 및 PEP8을 준수한다.
+    - tdd_rules의 현재 단계(red / green / refactor)에 맞는 변경만 한다.
+  after_coding:
+    - 테스트 실행 결과와 커버리지가 testing.coverage_minimum을 만족하는지 확인한다.
+    - forbidden 항목이 새로 생기지 않았는지 점검한다.
+  violations:
+    - >-
+      tdd_rules·architecture·forbidden·code_style 위반이 있으면 응답 맨 앞에 짧은 경고 블록으로 명시한다.
+      (예: '[경고] green_phase: 리팩터링 시도 감지 — 중단 후 테스트만 유지할 것')
