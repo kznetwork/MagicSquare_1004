@@ -37,6 +37,22 @@ def _copy_grid(grid: list[list[int]]) -> list[list[int]]:
     return [list(row) for row in grid]
 
 
+def _sum_row(grid: list[list[int]], row: int) -> int:
+    return sum(grid[row][c] for c in range(MATRIX_SIZE))
+
+
+def _sum_col(grid: list[list[int]], col: int) -> int:
+    return sum(grid[r][col] for r in range(MATRIX_SIZE))
+
+
+def _sum_main_diagonal(grid: list[list[int]]) -> int:
+    return sum(grid[i][i] for i in range(MATRIX_SIZE))
+
+
+def _sum_anti_diagonal(grid: list[list[int]]) -> int:
+    return sum(grid[i][MATRIX_SIZE - 1 - i] for i in range(MATRIX_SIZE))
+
+
 def find_missing_pair_sorted(grid: list[list[int]]) -> tuple[int, int]:
     """Return ``(n_small, n_large)`` for the two values missing from 1..CELL_MAX."""
     present: set[int] = set()
@@ -58,19 +74,16 @@ def is_completed_magic_square(grid: list[list[int]]) -> bool:
             if grid[r][c] == 0:
                 return False
 
-    def line_sum(cells: list[tuple[int, int]]) -> int:
-        return sum(grid[r][c] for r, c in cells)
-
     expected = MAGIC_SUM
     for r in range(MATRIX_SIZE):
-        if line_sum([(r, c) for c in range(MATRIX_SIZE)]) != expected:
+        if _sum_row(grid, r) != expected:
             return False
     for c in range(MATRIX_SIZE):
-        if line_sum([(r, c) for r in range(MATRIX_SIZE)]) != expected:
+        if _sum_col(grid, c) != expected:
             return False
-    if line_sum([(i, i) for i in range(MATRIX_SIZE)]) != expected:
+    if _sum_main_diagonal(grid) != expected:
         return False
-    if line_sum([(i, MATRIX_SIZE - 1 - i) for i in range(MATRIX_SIZE)]) != expected:
+    if _sum_anti_diagonal(grid) != expected:
         return False
     return True
 
