@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from magicsquare.entity.services.blank_coords import find_blank_coords
+from magicsquare.domain import find_blank_coords
 
 # PRD §9.3 — TQ-01 (정상 복원)
 _TQ_01: list[list[int]] = [
